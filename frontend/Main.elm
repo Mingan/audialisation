@@ -8,11 +8,15 @@ import Random
 import Svg exposing (Svg, circle, g, rect, svg)
 import Svg.Attributes
 import Time
+import WebSocket
+import Time exposing (Time)
+import Json.Decode
 
 
 type alias Model =
     { observations : List (Animated Observation)
     , config : Config
+    , events : List String
     }
 
 
@@ -29,13 +33,19 @@ duration =
 
 
 type Msg
-    = Tick Time.Time
-    | GeneratedMeterId Int
-    | FrameDiff Time.Time
+    = FrameDiff Time.Time
+    | Event (Result String Observation)
 
 
 type alias Observation =
     { meterId : Int
+    , measurements : List Measurement
+    }
+
+
+type alias Measurement =
+    { count : Int
+    , duration : Time.Time
     }
 
 
@@ -69,13 +79,16 @@ animationData animation =
         Animating spec ->
             spec.data
 
+
 isFinished : Animated a -> Bool
 isFinished animation =
     case animation of
         Done _ ->
             True
+
         Animating _ ->
             False
+
 
 main : Program Never Model Msg
 main =
@@ -95,6 +108,7 @@ init =
         , width = 700
         , baseRadius = 15
         }
+    , events = []
     }
         ! []
 
@@ -102,14 +116,19 @@ init =
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        Tick _ ->
-            model ! [ generateMeterId ]
-
-        GeneratedMeterId id ->
-            { model | observations = (newAnimation duration (Observation id)) :: model.observations } ! []
-
         FrameDiff diff ->
             { model | observations = List.map (animationTick diff) model.observations } ! []
+
+        Event result ->
+            case result of
+                Err err ->
+                    { model | events = err :: model.events } ! []
+
+                Ok observation ->
+                    { model
+                    | observations = (newAnimation duration observation) :: model.observations
+                    , events = (toString observation) :: model.events
+                    } ! []
 
 
 animationTick : Time.Time -> Animated a -> Animated a
@@ -129,17 +148,13 @@ animationTick diff animation =
                     Animating { spec | elapsed = newElapsed }
 
 
-generateMeterId : Cmd Msg
-generateMeterId =
-    Random.generate GeneratedMeterId (Random.int 0 2000)
-
-
 view : Model -> Html Msg
 view model =
     div
         [ Html.Attributes.style [ ( "margin", "5em auto" ), ( "width", "44em" ) ] ]
         [ plan model
-        , history model
+        , history model.observations
+        , messages model.events
         ]
 
 
@@ -217,17 +232,44 @@ bubble x y radius config observation =
             ]
             []
 
-
-history : Model -> Html Msg
-history model =
-    model.observations
+history : List (Animated Observation) -> Html Msg
+history observations =
+    observations
         |> List.map (\o -> li [] [ text <| toString <| o ])
+        |> ul []
+
+
+messages : List String -> Html Msg
+messages events =
+    events
+        |> List.map (\m -> li [] [ text m ])
         |> ul []
 
 
 subscriptions : Model -> Sub Msg
 subscriptions model =
     Sub.batch
-        [ Time.every (Time.millisecond * 333) Tick
-        , AnimationFrame.diffs FrameDiff
+        [ AnimationFrame.diffs FrameDiff
+        , WebSocket.listen "ws://localhost:8001/random" decodeEvent
         ]
+
+
+decodeEvent : String -> Msg
+decodeEvent s =
+    s
+        |> Json.Decode.decodeString eventDecoder
+        |> Event
+
+
+eventDecoder : Json.Decode.Decoder Observation
+eventDecoder =
+    Json.Decode.map2 Observation
+        (Json.Decode.field "meter_id" Json.Decode.int)
+        (Json.Decode.field "measurements" (Json.Decode.list measurementDecoder))
+
+
+measurementDecoder : Json.Decode.Decoder Measurement
+measurementDecoder =
+    Json.Decode.map2 Measurement
+        (Json.Decode.field "count" Json.Decode.int)
+        (Json.Decode.field "duration" Json.Decode.float)
