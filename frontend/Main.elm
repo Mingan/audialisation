@@ -126,9 +126,10 @@ update msg model =
 
                 Ok observation ->
                     { model
-                    | observations = (newAnimation duration observation) :: model.observations
-                    , events = (toString observation) :: model.events
-                    } ! []
+                        | observations = (newAnimation duration observation) :: model.observations
+                        , events = (toString observation) :: model.events
+                    }
+                        ! []
 
 
 animationTick : Time.Time -> Animated a -> Animated a
@@ -177,26 +178,55 @@ plan model =
 
 bubbles : Model -> Svg Msg
 bubbles model =
-    model.observations
-        |> List.filter (isFinished >> not)
-        |> List.map (bubble (xFromMeterId model.config) (yFromMeterId model.config) (radius model.config) model.config)
-        |> g []
+    let
+        fns =
+            [ xFromMeterId model.config >> toString >> Svg.Attributes.cx
+            , yFromMeterId model.config >> toString >> Svg.Attributes.cy
+            , radius model.config >> toString >> Svg.Attributes.r
+            ]
+    in
+        model.observations
+            |> List.filter (not << isFinished)
+            |> List.map (bubble fns)
+            |> g []
 
 
-xFromMeterId : Config -> Observation -> Float
-xFromMeterId config observation =
-    Hash.hash (toString observation.meterId)
-        % (config.width - 2 * config.baseRadius)
-        + config.baseRadius
-        |> toFloat
+xFromMeterId : Config -> Animated Observation -> Float
+xFromMeterId config animation =
+    let
+        fn =
+            (\observation ->
+                Hash.hash (toString observation.meterId)
+                    % (config.width - 2 * config.baseRadius)
+                    + config.baseRadius
+                    |> toFloat
+            )
+    in
+        defaultDoneObservation fn animation
 
 
-yFromMeterId : Config -> Observation -> Float
-yFromMeterId config observation =
-    Hash.hash (toString observation.meterId)
-        % (config.height - 2 * config.baseRadius)
-        + config.baseRadius
-        |> toFloat
+yFromMeterId : Config -> Animated Observation -> Float
+yFromMeterId config animation =
+    let
+        fn =
+            (\observation ->
+                Hash.hash (toString observation.meterId)
+                    % (config.height - 2 * config.baseRadius)
+                    + config.baseRadius
+                    |> toFloat
+            )
+    in
+        defaultDoneObservation fn animation
+
+
+defaultDoneObservation : (Observation -> Float) -> Animated Observation -> Float
+defaultDoneObservation fn animation =
+    case animation of
+        Done _ ->
+            -999999
+
+        Animating spec ->
+            fn spec.data
 
 
 radius : Config -> Animated Observation -> Float
@@ -216,21 +246,30 @@ radius config animation =
         (toFloat config.baseRadius * 2) * coef + (toFloat config.baseRadius)
 
 
-bubble : (Observation -> Float) -> (Observation -> Float) -> (Animated Observation -> Float) -> Config -> Animated Observation -> Svg Msg
-bubble x y radius config observation =
-    let
-        data =
-            animationData observation
-    in
-        circle
-            [ Svg.Attributes.stroke "#338"
-            , Svg.Attributes.fill "#66a"
-            , Svg.Attributes.cx <| toString <| x data
-            , Svg.Attributes.cy <| toString <| y data
-            , Svg.Attributes.r <| toString <| radius observation
-            , Html.Attributes.style [ ( "opacity", ".6" ) ]
-            ]
-            []
+animatedSvgAttributes : AnimationFns -> Animated Observation -> List (Svg.Attribute Msg)
+animatedSvgAttributes fns animation =
+    List.map (\fn -> fn animation) fns
+
+
+type alias AnimationFn =
+    Animated Observation -> Svg.Attribute Msg
+
+
+type alias AnimationFns =
+    List AnimationFn
+
+
+bubble : AnimationFns -> Animated Observation -> Svg Msg
+bubble animationFns observation =
+    circle
+        ([ Svg.Attributes.stroke "#338"
+         , Svg.Attributes.fill "#66a"
+         , Html.Attributes.style [ ( "opacity", ".6" ) ]
+         ]
+            ++ (animatedSvgAttributes animationFns observation)
+        )
+        []
+
 
 history : List (Animated Observation) -> Html Msg
 history observations =
