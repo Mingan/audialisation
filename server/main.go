@@ -10,14 +10,10 @@ import (
 	"time"
 )
 
-type Measurement struct {
+type Message struct {
+	MeterId  int           `json:"meter_id"`
 	Count    int           `json:"count"`
 	Duration time.Duration `json:"duration"`
-}
-
-type Message struct {
-	MeterId      int           `json:"meter_id"`
-	Measurements []Measurement `json:"measurements"`
 }
 
 func main() {
@@ -71,19 +67,11 @@ func createRandom(upgrader websocket.Upgrader) http.HandlerFunc {
 
 func randomMsg() Message {
 	meterId := rand.Intn(64352)
-	count := rand.Intn(21)
-
-	measurements := make([]Measurement, count)
-	for i := 0; i < count; i++ {
-		measurements[i] = Measurement{
-			Count:    1,
-			Duration: time.Second,
-		}
-	}
 
 	return Message{
-		MeterId:      meterId,
-		Measurements: measurements,
+		MeterId:  meterId,
+		Count:    rand.Intn(21),
+		Duration: time.Second * time.Duration(rand.Intn(15)),
 	}
 }
 

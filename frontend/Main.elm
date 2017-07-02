@@ -27,11 +27,6 @@ type alias Config =
     }
 
 
-duration : Time.Time
-duration =
-    Time.second * 3
-
-
 type Msg
     = FrameDiff Time.Time
     | Event (Result String Observation)
@@ -39,12 +34,7 @@ type Msg
 
 type alias Observation =
     { meterId : Int
-    , measurements : List Measurement
-    }
-
-
-type alias Measurement =
-    { count : Int
+    , count : Int
     , duration : Time.Time
     }
 
@@ -126,7 +116,7 @@ update msg model =
 
                 Ok observation ->
                     { model
-                        | observations = (newAnimation duration observation) :: model.observations
+                        | observations = (newAnimation (observation.duration / 1000 / 1000) observation) :: model.observations
                         , events = (toString observation) :: model.events
                     }
                         ! []
@@ -232,18 +222,18 @@ defaultDoneObservation fn animation =
 radius : Config -> Animated Observation -> Float
 radius config animation =
     let
-        coef =
+        ( progress, size ) =
             case animation of
-                Done data ->
-                    1.0
+                Done observation ->
+                    ( 1.0, observation.count )
 
                 Animating spec ->
                     if spec.elapsed == 0 then
-                        0
+                        ( 0, spec.data.count )
                     else
-                        spec.elapsed / spec.duration
+                        ( spec.elapsed / spec.duration, spec.data.count )
     in
-        (toFloat config.baseRadius * 2) * coef + (toFloat config.baseRadius)
+        (toFloat (config.baseRadius * size)) * progress + (toFloat config.baseRadius)
 
 
 animatedSvgAttributes : AnimationFns -> Animated Observation -> List (Svg.Attribute Msg)
@@ -302,13 +292,7 @@ decodeEvent s =
 
 eventDecoder : Json.Decode.Decoder Observation
 eventDecoder =
-    Json.Decode.map2 Observation
+    Json.Decode.map3 Observation
         (Json.Decode.field "meter_id" Json.Decode.int)
-        (Json.Decode.field "measurements" (Json.Decode.list measurementDecoder))
-
-
-measurementDecoder : Json.Decode.Decoder Measurement
-measurementDecoder =
-    Json.Decode.map2 Measurement
         (Json.Decode.field "count" Json.Decode.int)
         (Json.Decode.field "duration" Json.Decode.float)
