@@ -1,0 +1,58 @@
+<!doctype html>
+<html>
+<head>
+    <title>Audialisation</title>
+    <style type="text/css">
+        body {
+            margin: 0
+        }
+    </style>
+</head>
+<body>
+<script src="howler.js"></script>
+<script src="main.js"></script>
+<script></script>
+<script>
+  var celesta = [], clav = [];
+  for (var i = 1; i <= 24; i++) {
+    var fn;
+    if (i > 9) {
+      fn = 'c0' + i;
+    } else {
+      fn = 'c00' + i;
+    }
+    celesta.push(new Howl({
+      src : [
+        'sounds/celesta/' + fn + '.ogg',
+        'sounds/celesta/' + fn + '.mp3'
+      ]
+    }));
+    clav.push(new Howl({
+      src : [
+        'sounds/clav/' + fn + '.ogg',
+        'sounds/clav/' + fn + '.mp3'
+      ]
+    }));
+  }
+
+
+  var app = Elm.Main.fullscreen();
+  app.ports.playSound.subscribe(function (size) {
+    var max_pitch = 100.0;
+    var log_used = 1.0715307808111486871978099;
+    var pitch = 100 - Math.min(max_pitch, Math.log(size + log_used) / Math.log(log_used));
+    var index = Math.floor(pitch / 100.0 * Object.keys(celesta).length);
+    var fuzz = Math.floor(Math.random() * 4) - 2;
+    index += fuzz;
+    index = Math.min(Object.keys(celesta).length - 1, index);
+    index = Math.max(1, index);
+
+    if (Math.random() < 0.5) {
+      celesta[index].play();
+    } else {
+      clav[index].play();
+    }
+  });
+</script>
+</body>
+</html>

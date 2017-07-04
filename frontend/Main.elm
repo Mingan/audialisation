@@ -1,4 +1,4 @@
-module Main exposing (main)
+port module Main exposing (main)
 
 import AnimationFrame
 import Hash
@@ -11,6 +11,9 @@ import Time
 import WebSocket
 import Time exposing (Time)
 import Json.Decode
+
+
+port playSound : Int -> Cmd msg
 
 
 type alias Model =
@@ -94,8 +97,8 @@ init : ( Model, Cmd Msg )
 init =
     { observations = []
     , config =
-        { height = 400
-        , width = 700
+        { height = 700
+        , width = 900
         , baseRadius = 15
         }
     , events = []
@@ -119,7 +122,7 @@ update msg model =
                         | observations = (newAnimation (observation.duration / 1000 / 1000) observation) :: model.observations
                         , events = (toString observation) :: model.events
                     }
-                        ! []
+                        ! [ playSound observation.count ]
 
 
 animationTick : Time.Time -> Animated a -> Animated a
@@ -142,7 +145,7 @@ animationTick diff animation =
 view : Model -> Html Msg
 view model =
     div
-        [ Html.Attributes.style [ ( "margin", "5em auto" ), ( "width", "44em" ) ] ]
+        [ Html.Attributes.style [ ("margin", "2em auto"), ( "width", "900px" ) ] ]
         [ plan model
         , history model.observations
         , messages model.events
