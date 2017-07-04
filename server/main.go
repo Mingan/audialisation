@@ -4,9 +4,12 @@ import (
 	"bytes"
 	"encoding/json"
 	"github.com/gorilla/websocket"
+	"io"
 	"log"
 	"math/rand"
 	"net/http"
+	"os"
+	"path/filepath"
 	"time"
 )
 
@@ -17,6 +20,11 @@ type Message struct {
 }
 
 func main() {
+	dir, err := filepath.Abs(filepath.Dir(os.Args[0]))
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	addr := ":8001"
 	upgrader := websocket.Upgrader{
 		CheckOrigin: func(r *http.Request) bool {
@@ -25,8 +33,9 @@ func main() {
 	}
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/ping", cors(ping))
+	mux.HandleFunc("/ping", ping)
 	mux.HandleFunc("/random", createRandom(upgrader))
+	mux.HandleFunc("/", createDefaultHandler(dir))
 	if err := http.ListenAndServe(addr, mux); err != nil {
 		log.Println(err)
 	}
@@ -79,13 +88,21 @@ func ping(w http.ResponseWriter, _ *http.Request) {
 	w.Write([]byte("Up"))
 }
 
-func cors(next http.HandlerFunc) http.HandlerFunc {
+func createDefaultHandler(dir string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		if r.Method == http.MethodOptions {
+		path := filepath.Join(dir, "..", "frontend", r.URL.Path)
+		file, err := os.Open(path)
+		if err != nil {
+			log.Println(path, err)
+			if os.IsExist(err) {
+				w.WriteHeader(http.StatusNotFound)
+				return
+			}
+			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
+		defer file.Close()
 
-		next(w, r)
+		io.Copy(w, file)
 	}
 }
