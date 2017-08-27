@@ -10,7 +10,7 @@ import Types exposing (..)
 
 
 type alias AnimationFn =
-    Animated Addition -> Svg.Attribute Msg
+    Addition -> Svg.Attribute Msg
 
 
 type alias AnimationFns =
@@ -63,47 +63,34 @@ bubbles model =
             |> g []
 
 
-xFromMeterId : Config -> Animated Addition -> Float
+xFromMeterId : Config -> Addition -> Float
 xFromMeterId =
     coordFromMeterId .width
 
 
-yFromMeterId : Config -> Animated Addition -> Float
+yFromMeterId : Config -> Addition -> Float
 yFromMeterId =
     coordFromMeterId .height
 
 
-coordFromMeterId : (Config -> Int) -> Config -> Animated Addition -> Float
-coordFromMeterId fn config animation =
-    case animation of
-        Done _ ->
-            -999999
-
-        Animating spec ->
-            Hash.hash (toString spec.data.meterId)
-                % ((fn config) - 2 * config.baseRadius)
-                + config.baseRadius
-                |> toFloat
+coordFromMeterId : (Config -> Int) -> Config -> Addition -> Float
+coordFromMeterId fn config addition =
+    Hash.hash (toString addition.meterId)
+        % ((fn config) - 2 * config.baseRadius)
+        + config.baseRadius
+        |> toFloat
 
 
-radius : Config -> Animated Addition -> Float
-radius config animation =
+radius : Config -> Addition -> Float
+radius config addition =
     let
         ( progress, size ) =
-            case animation of
-                Done addition ->
-                    ( 1.0, addition.count )
-
-                Animating spec ->
-                    if spec.elapsed == 0 then
-                        ( 0, spec.data.count )
-                    else
-                        ( spec.elapsed / spec.duration, spec.data.count )
+            ( 1.0, addition.count )
     in
         (toFloat (config.baseRadius * size)) * progress + (toFloat config.baseRadius)
 
 
-bubble : AnimationFns -> Animated Addition -> Svg Msg
+bubble : AnimationFns -> Addition -> Svg Msg
 bubble animationFns addition =
     circle
         ([ Svg.Attributes.stroke "#338"
@@ -115,12 +102,12 @@ bubble animationFns addition =
         []
 
 
-animatedSvgAttributes : AnimationFns -> Animated Addition -> List (Svg.Attribute Msg)
+animatedSvgAttributes : AnimationFns -> Addition -> List (Svg.Attribute Msg)
 animatedSvgAttributes fns animation =
     List.map (\fn -> fn animation) fns
 
 
-history : List (Animated Addition) -> Html Msg
+history : List Addition -> Html Msg
 history additions =
     additions
         |> List.map (\o -> li [] [ text <| toString <| o ])
