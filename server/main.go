@@ -13,7 +13,12 @@ import (
 	"time"
 )
 
-type Message struct {
+var (
+	Address         = ":8001"
+	FrontendRelPath = filepath.Join("..", "frontend")
+)
+
+type Addition struct {
 	MeterId  int           `json:"meter_id"`
 	Count    int           `json:"count"`
 	Duration time.Duration `json:"duration"`
@@ -25,7 +30,6 @@ func main() {
 		log.Fatal(err)
 	}
 
-	addr := ":8001"
 	upgrader := websocket.Upgrader{
 		CheckOrigin: func(r *http.Request) bool {
 			return true
@@ -33,15 +37,19 @@ func main() {
 	}
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/ping", ping)
-	mux.HandleFunc("/random", createRandom(upgrader))
+	mux.HandleFunc("/ping", pingHandler)
+	mux.HandleFunc("/random", createRandomHandler(upgrader))
 	mux.HandleFunc("/", createDefaultHandler(dir))
-	if err := http.ListenAndServe(addr, mux); err != nil {
+	if err := http.ListenAndServe(Address, mux); err != nil {
 		log.Println(err)
 	}
 }
 
-func createRandom(upgrader websocket.Upgrader) http.HandlerFunc {
+func pingHandler(w http.ResponseWriter, _ *http.Request) {
+	w.Write([]byte("Up"))
+}
+
+func createRandomHandler(upgrader websocket.Upgrader) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		c, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
@@ -74,23 +82,19 @@ func createRandom(upgrader websocket.Upgrader) http.HandlerFunc {
 	}
 }
 
-func randomMsg() Message {
+func randomMsg() Addition {
 	meterId := rand.Intn(64352)
 
-	return Message{
+	return Addition{
 		MeterId:  meterId,
 		Count:    rand.Intn(21),
 		Duration: time.Second * time.Duration(rand.Intn(15)),
 	}
 }
 
-func ping(w http.ResponseWriter, _ *http.Request) {
-	w.Write([]byte("Up"))
-}
-
 func createDefaultHandler(dir string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		path := filepath.Join(dir, "..", "frontend", r.URL.Path)
+		path := filepath.Join(dir, FrontendRelPath, r.URL.Path)
 		file, err := os.Open(path)
 		if err != nil {
 			log.Println(path, err)
